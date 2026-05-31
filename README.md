@@ -18,6 +18,7 @@ run.bat
 2. Detect `.venv\Scripts\python.exe` or fall back to `python`.
 3. Install dependencies from `requirements.txt`.
 4. Launch `main.py`.
+5. Keep the window open if launch fails, so errors are visible.
 
 ## Run From Source
 
@@ -37,6 +38,12 @@ python main.py tokens
 python main.py startup-add --help
 python main.py startup-remove
 ```
+
+## Troubleshooting
+
+- Launcher diagnostics: `%TEMP%\DiscordAccountBackup\launcher.log`
+- Crash diagnostics: `%TEMP%\DiscordAccountBackup\crash.log`
+- If TUI cannot open file-picker dialogs, restore mode falls back to manual path entry.
 
 ## Project Layout
 

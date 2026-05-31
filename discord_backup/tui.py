@@ -8,15 +8,18 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+path_dialog = None
+
 try:
     from prompt_toolkit.shortcuts import (
-        button_dialog,
         input_dialog,
         message_dialog,
-        path_dialog,
         radiolist_dialog,
-        yes_no_dialog,
     )
+    try:
+        from prompt_toolkit.shortcuts import path_dialog
+    except ImportError:
+        path_dialog = None
     _HAS_PROMPT_TOOLKIT = True
 except ImportError:
     _HAS_PROMPT_TOOLKIT = False
@@ -137,7 +140,13 @@ async def _async_run_backup(token: str, config: AppConfig, console: Console) -> 
 
 
 def _run_restore_flow(console: Console, config: AppConfig) -> None:
-    backup_path = path_dialog(title="Select backup file", text="Choose a .bkup file to restore:").run()
+    if path_dialog is not None:
+        backup_path = path_dialog(title="Select backup file", text="Choose a .bkup file to restore:").run()
+    else:
+        backup_path = input_dialog(
+            title="Restore from backup",
+            text="Enter full path to the .bkup file:",
+        ).run()
     if not backup_path:
         return
     backup_path = Path(backup_path)
