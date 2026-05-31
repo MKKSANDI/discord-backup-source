@@ -2,6 +2,8 @@
 
 `DiscordAccountBackup` is a Windows-first Python CLI/TUI project with dependency bootstrapping built in.
 
+preview.png
+
 ## Requirements
 
 - Python 3.10+
