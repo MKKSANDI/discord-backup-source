@@ -38,10 +38,19 @@ class Console:
         if self.status_callback:
             self.status_callback(message)
 
+    def _safe_text(self, text: str) -> str:
+        encoding = getattr(self.stream, "encoding", None) or "utf-8"
+        try:
+            text.encode(encoding, errors="strict")
+            return text
+        except UnicodeEncodeError:
+            return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+
     def _emit(self, prefix_colour: str, message: str, *, indent: int = 0, end: str = "\n") -> None:
         padding = " " * max(indent, 0)
         prefix = f"{self.colour(prefix_colour)}>{Style.RESET_ALL} "
-        self.stream.write(f"{padding}{prefix}{message}{Style.RESET_ALL}{end}")
+        payload = f"{padding}{prefix}{message}{Style.RESET_ALL}{end}"
+        self.stream.write(self._safe_text(payload))
         self._notify(message)
 
     def info(self, message: str, *, indent: int = 0) -> None:
@@ -61,7 +70,8 @@ class Console:
     def prompt(self, message: str, *, indent: int = 0, end: str = "") -> None:
         padding = " " * max(indent, 0)
         prefix = f"{self.colour('light_blue')}>{Style.RESET_ALL} "
-        self.stream.write(f"{padding}{prefix}{message}{Style.RESET_ALL}{end}")
+        payload = f"{padding}{prefix}{message}{Style.RESET_ALL}{end}"
+        self.stream.write(self._safe_text(payload))
         self.stream.flush()
         self._notify(message)
 

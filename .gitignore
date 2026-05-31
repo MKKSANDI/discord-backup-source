@@ -12,6 +12,8 @@ tmp/
 out/
 build/
 dist/
+backups/
+*.bkup
 *_dis.txt
 
 # OS/editor noise
