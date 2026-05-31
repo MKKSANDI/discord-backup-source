@@ -1,0 +1,20 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+
+# Tool/runtime output
+*.log
+*.tmp
+tmp/
+out/
+build/
+dist/
+
+# OS/editor noise
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
