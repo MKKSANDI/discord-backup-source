@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from discord_backup import models
+from . import models
 
 APP_VERSION = "2.0.0-dev"
 

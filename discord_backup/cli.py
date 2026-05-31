@@ -1,5 +1,3 @@
-# Modern Discord backup & restore toolkit.
-
 from __future__ import annotations
 
 import asyncio
@@ -11,18 +9,17 @@ from typing import Optional
 import typer
 from colorama import init as colorama_init
 
-from discord_backup.backup import BackupError, BackupService
-from discord_backup.config import AppConfig
-from discord_backup.console import Console
-from discord_backup.http_client import DiscordHTTPClient
-from discord_backup.restore import RestoreError, RestoreService
-from discord_backup.results import BackupResult
-from discord_backup.startup import remove_startup_script, write_startup_script
-from discord_backup.token_discovery import DiscoveredToken, discover_tokens
+from .backup import BackupError, BackupService
+from .config import AppConfig
+from .console import Console
+from .http_client import DiscordHTTPClient
+from .restore import RestoreError, RestoreService
+from .results import BackupResult
+from .startup import remove_startup_script, write_startup_script
+from .token_discovery import DiscoveredToken, discover_tokens
 
-colorama_init()
-
-app = typer.Typer(help="DiscordAccountBackup CLI/TUI toolkit.")
+app = typer.Typer(add_completion=False, help="Modern Discord backup & restore toolkit.")
+colorama_init(autoreset=True)
 
 
 def _load_config_and_console() -> tuple[AppConfig, Console]:
@@ -31,31 +28,59 @@ def _load_config_and_console() -> tuple[AppConfig, Console]:
     return config, console
 
 
-async def _select_token(console: Console, scan: bool) -> tuple[str, DiscoveredToken] | None:
+async def _select_token(http: DiscordHTTPClient, console: Console) -> Optional[DiscoveredToken]:
+    tokens = await discover_tokens(http)
+    if not tokens:
+        console.warn("No tokens discovered on this system.")
+        return None
+    console.info("Discovered tokens:")
+    for idx, info in enumerate(tokens):
+        console.info(f"[{idx}] {info.user_tag} ({info.source})", indent=2)
+    choice = typer.prompt("Select token index", default="0")
+    try:
+        selected = tokens[int(choice)]
+        console.success(f"Selected {selected.user_tag}")
+        return selected
+    except (ValueError, IndexError):
+        console.error("Invalid selection")
+        return None
+
+
+async def _run_backup(token: str | None, config: AppConfig, console: Console, scan: bool) -> BackupResult | None:
     http = await DiscordHTTPClient.create()
     try:
-        tokens = await discover_tokens()
-        if not tokens:
-            console.warn("No tokens discovered on this system.")
+        token_value = token
+        if scan or not token_value:
+            selection = await _select_token(http, console)
+            if not selection:
+                return None
+            token_value = selection.token
+        if not token_value:
+            console.error("Token is required to run a backup.")
             return None
-        console.info("Discovered tokens:")
-        for idx, t in enumerate(tokens):
-            console.info(f"  {idx}: {t.user_tag} from {t.source}")
-        try:
-            choice = typer.prompt("Select token index", type=int)
-            selected = tokens[choice]
-            console.success(f"Selected {selected.user_tag}")
-            return selected.token, selected
-        except (ValueError, IndexError):
-            console.error("Invalid selection")
-            return None
+
+        service = BackupService(http=http, token=token_value, config=config, console=console)
+        result = await service.run()
+        path = await service.save(result)
+        console.info(f"Backup stored at {path}")
+        summary = result.summary()
+        console.info(
+            "Guilds: {success}/{total}".format(**summary["guilds"]),
+            indent=2,
+        )
+        console.info(
+            "Group chats: {success}/{total}".format(**summary["group_chats"]),
+            indent=2,
+        )
+        console.info(f"Duration: {result.duration:.1f}s", indent=2)
+        return result
     finally:
         await http.aclose()
 
 
 @app.command()
 def backup(
-    token: Optional[str] = typer.Argument(None, help="Discord user token"),
+    token: str | None = typer.Option(None, help="Discord user token"),
     scan: bool = typer.Option(False, "--scan", help="Auto-discover tokens on this machine"),
 ) -> None:
     """Create a new backup interactively."""
@@ -64,65 +89,13 @@ def backup(
         asyncio.run(_run_backup(token, config, console, scan))
     except BackupError as exc:
         console.error(str(exc))
-        raise typer.Exit(1)
-
-
-async def _run_backup(
-    token: Optional[str],
-    config: AppConfig,
-    console: Console,
-    scan: bool,
-) -> None:
-    if not token and not scan:
-        console.error("Token is required to run a backup.")
-        return
-    token_value = token
-    if scan or not token_value:
-        selection = await _select_token(console, scan)
-        if not selection:
-            return
-        token_value = selection[0]
-    http = await DiscordHTTPClient.create()
-    try:
-        service = BackupService()
-        result = await service.run(token_value, config, console)
-        path = service.save(result)
-        console.success(f"Backup stored at {path}")
-        if hasattr(result, "summary") and result.summary:
-            summary = result.summary
-            console.info(
-                f"Guilds: {summary.get('guilds', (0, 0))[0]}/{summary.get('guilds', (0, 0))[1]}"
-            )
-            console.info(
-                f"Group chats: {summary.get('group_chats', (0, 0))[0]}/{summary.get('group_chats', (0, 0))[1]}"
-            )
-        if hasattr(result, "duration"):
-            console.info(f"Duration: {result.duration:.1f}s")
-    finally:
-        await http.aclose()
-
-
-@app.command()
-def restore(
-    backup_file: Path = typer.Argument(..., help="Path to .bkup file"),
-    token: Optional[str] = typer.Argument(None, help="Discord user token"),
-    bot_token: Optional[str] = typer.Option(None, help="Bot token for user lookups"),
-    restore_folders: bool = typer.Option(False, help="Restore guild folders"),
-    allow_version_mismatch: bool = typer.Option(False, help="Ignore backup version mismatches"),
-) -> None:
-    """Restore from a backup file."""
-    config, console = _load_config_and_console()
-    try:
-        asyncio.run(_run_restore(backup_file, token, bot_token, restore_folders, allow_version_mismatch, console))
-    except RestoreError as exc:
-        console.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(code=1)
 
 
 async def _run_restore(
     backup_path: Path,
-    token: Optional[str],
-    bot_token: Optional[str],
+    token: str,
+    bot_token: str,
     restore_folders: bool,
     allow_version_mismatch: bool,
     console: Console,
@@ -133,83 +106,115 @@ async def _run_restore(
     data = json.loads(backup_path.read_text(encoding="utf-8"))
     http = await DiscordHTTPClient.create()
     try:
-        service = RestoreService()
+        service = RestoreService(http=http, token=token, bot_token=bot_token, backup=data, console=console)
         summary = await service.run(
-            data, token or "", bot_token, restore_folders, allow_version_mismatch, console
+            restore_folders=restore_folders,
+            expected_version=data.get("version"),
+            allow_mismatch=allow_version_mismatch,
         )
         console.success("Restore complete")
-        if summary:
-            console.info(f"Backup guild id: {summary.get('guild_id')}")
-            console.info(f"Favourite GIFs: {summary.get('favourite_gifs_status')}")
-            console.info(f"Folders restored: {summary.get('folder_restore_attempted')}")
-            console.info(f"Duration: {summary.get('duration', 0):.1f}s")
+        console.info(f"Backup guild id: {summary.guild_id}")
+        console.info(f"Favourite GIFs: {summary.favourite_gifs_status}")
+        console.info(
+            "Folders restored" if summary.folder_restore_attempted else "Folders skipped",
+            indent=2,
+        )
+        console.info(f"Duration: {summary.duration:.1f}s", indent=2)
     finally:
         await http.aclose()
 
 
 @app.command()
+def restore(
+    backup_file: Path = typer.Argument(..., exists=True, readable=True, help="Path to .bkup file"),
+    token: str = typer.Option(..., prompt=True, hide_input=True, help="Discord user token"),
+    bot_token: str = typer.Option(..., prompt=True, hide_input=True, help="Bot token for user lookups"),
+    restore_folders: bool = typer.Option(True, help="Restore guild folders"),
+    allow_version_mismatch: bool = typer.Option(False, help="Ignore backup version mismatches"),
+) -> None:
+    """Restore from a backup file."""
+    _, console = _load_config_and_console()
+    try:
+        asyncio.run(
+            _run_restore(
+                backup_file,
+                token,
+                bot_token,
+                restore_folders,
+                allow_version_mismatch,
+                console,
+            )
+        )
+    except RestoreError as exc:
+        console.error(str(exc))
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def auto_backup(
-    account_id: str = typer.Argument(..., help="Discord account ID to auto-backup"),
-    working_dir: Optional[Path] = typer.Argument(None, help="Working directory containing config.yml"),
+    account_id: str = typer.Option(..., help="Discord account ID to auto-backup"),
+    working_dir: Path = typer.Option(Path.cwd(), help="Working directory containing config.yml"),
 ) -> None:
     """Internal helper used by the startup script."""
     config, console = _load_config_and_console()
-    if working_dir and not working_dir.exists():
-        console.warn(f"Working directory not found: {working_dir}")
-        return
+    working_dir = working_dir.resolve()
+    if working_dir.exists():
+        import os
 
+        os.chdir(working_dir)
+    else:
+        console.warn(f"Working directory not found: {working_dir}")
     async def runner() -> None:
         http = await DiscordHTTPClient.create()
-        tokens = await discover_tokens()
-        token_value = None
-        for item in tokens:
-            if item.user_id == account_id:
-                token_value = item.token
-                console.success(f"Found token for {item.user_tag}")
-                break
-        if not token_value:
-            console.error("No matching token found for auto-backup")
-            return
-        await http.aclose()
-        service = BackupService()
-        result = await service.run(token_value, config, console)
-        service.save(result)
-        console.success("Auto-backup finished")
-
+        try:
+            tokens = await discover_tokens(http)
+            token_value = None
+            for item in tokens:
+                if item.user_id == account_id:
+                    token_value = item.token
+                    console.success(f"Found token for {item.user_tag}")
+                    break
+            if not token_value:
+                console.error("No matching token found for auto-backup")
+                return
+            service = BackupService(http=http, token=token_value, config=config, console=console)
+            result = await service.run()
+            await service.save(result)
+            console.success("Auto-backup finished")
+        finally:
+            await http.aclose()
     asyncio.run(runner())
 
 
 @app.command()
 def startup_add(
-    scan: bool = typer.Option(False, help="Scan for tokens to choose from"),
+    scan: bool = typer.Option(True, help="Scan for tokens to choose from"),
 ) -> None:
     """Add the current executable/script to Windows startup for auto-backup."""
-    config, _ = _load_config_and_console()
-
-    _console = Console(accent=config.colour)
+    config, console = _load_config_and_console()
 
     async def runner() -> None:
         http = await DiscordHTTPClient.create()
-        selection = await _select_token(_console, scan) if scan else None
-        if not selection:
-            token_input = typer.prompt("Enter user token for auto-backup", default="")
-            if not token_input:
-                _console.error("Token required for auto-backup")
-                return
-            user_id = "manual"
-        else:
-            user_id = selection[1].user_id
-        await http.aclose()
-        executable = getattr(sys, "executable", None)
-        if getattr(sys, "frozen", False):
-            command = f'"{executable}"'
-        else:
-            from pathlib import Path as P
-            _root = P(__file__).resolve().parent.parent
-            command = f'cmd.exe /C python "{_root / "main.py"}"'
-        command += f' auto-backup --account-id {user_id}'
-        script_path = write_startup_script(command, ".")
-        _console.success(f"Startup script written to {script_path}")
+        try:
+            selection: DiscoveredToken | None = None
+            if scan:
+                selection = await _select_token(http, console)
+            if not selection:
+                token_input = typer.prompt("Enter user token for auto-backup", hide_input=True)
+                if not token_input:
+                    console.error("Token required for auto-backup")
+                    return
+                selection = DiscoveredToken(token=token_input, user_tag="manual", user_id=typer.prompt("Enter account id"), source="manual")
+
+            executable = Path(sys.executable if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent / "main.py")
+            if executable.suffix == ".py":
+                command = f'cmd.exe /C python "{executable}" auto-backup --account-id {selection.user_id}'
+            else:
+                command = f'"{executable}" auto-backup --account-id {selection.user_id}'
+            script_path = write_startup_script(command, Path.cwd())
+            console.success(f"Startup script written to {script_path}")
+        finally:
+            await http.aclose()
 
     asyncio.run(runner())
 
@@ -226,17 +231,19 @@ def startup_remove() -> None:
 @app.command()
 def tokens() -> None:
     """List tokens discovered on this machine."""
-    config, console = _load_config_and_console()
+    _, console = _load_config_and_console()
 
     async def runner() -> None:
         http = await DiscordHTTPClient.create()
-        tokens = await discover_tokens()
-        await http.aclose()
-        if not tokens:
-            console.warn("No tokens discovered")
-            return
-        for item in tokens:
-            console.info(f"{item.user_tag} ({item.user_id}) - {item.source}")
+        try:
+            tokens = await discover_tokens(http)
+            if not tokens:
+                console.warn("No tokens discovered")
+                return
+            for item in tokens:
+                console.info(f"{item.user_tag} ({item.user_id}) - {item.source}")
+        finally:
+            await http.aclose()
 
     asyncio.run(runner())
 

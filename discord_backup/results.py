@@ -1,15 +1,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
+
+from .models import BackupBundle
 
 
-@dataclass
+@dataclass(slots=True)
 class BackupResult:
+    bundle: BackupBundle
     duration: float
-    guilds: tuple[int, int]  # success, total
-    group_chats: tuple[int, int]
-    path: str | None = None
-    summary: dict | None = None
+    guild_success: int
+    guild_total: int
+    group_chat_success: int
+    group_chat_total: int
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "duration": self.duration,
+            "guilds": {
+                "success": self.guild_success,
+                "total": self.guild_total,
+            },
+            "group_chats": {
+                "success": self.group_chat_success,
+                "total": self.group_chat_total,
+            },
+        }
 
 
 __all__ = ["BackupResult"]

@@ -1,10 +1,8 @@
-"""Lightweight coloured console helper."""
-
 from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Iterable
 
 from colorama import Fore, Style
 
@@ -25,63 +23,58 @@ _COLOUR_MAP = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class Console:
     """Lightweight coloured console helper."""
 
     accent: str = "purple"
-    stream: object = sys.stdout
+    stream: any = sys.stdout
     status_callback: Callable[[str], None] | None = None
 
     def colour(self, name: str) -> str:
-        return _COLOUR_MAP.get(name, "purple")
+        return _COLOUR_MAP.get(name, _COLOUR_MAP["purple"])
 
     def _notify(self, message: str) -> None:
         if self.status_callback:
             self.status_callback(message)
 
-    def _emit(
-        self,
-        prefix_colour: str,
-        message: str,
-        indent: int = 0,
-        end: str = "\n",
-    ) -> None:
-        padding = "  " * max(0, indent)
-        prefix = self.colour(prefix_colour) if prefix_colour else ""
-        line = f"{padding}{prefix}{message}{Style.RESET_ALL}{end}"
-        self.stream.write(line)
+    def _emit(self, prefix_colour: str, message: str, *, indent: int = 0, end: str = "\n") -> None:
+        padding = " " * max(indent, 0)
+        prefix = f"{self.colour(prefix_colour)}>{Style.RESET_ALL} "
+        self.stream.write(f"{padding}{prefix}{message}{Style.RESET_ALL}{end}")
         self._notify(message)
 
-    def info(self, message: str, indent: int = 0) -> None:
-        self._emit("white", message, indent)
+    def info(self, message: str, *, indent: int = 0) -> None:
+        self._emit("white", message, indent=indent)
 
-    def success(self, message: str, indent: int = 0) -> None:
+    def success(self, message: str, *, indent: int = 0) -> None:
         accent_colour = self.colour(self.accent)
         highlighted = f"{accent_colour}{message}{Style.RESET_ALL}"
-        self._emit("green", highlighted, indent)
+        self._emit("green", highlighted, indent=indent)
 
-    def warn(self, message: str, indent: int = 0) -> None:
-        self._emit("yellow", message, indent)
+    def warn(self, message: str, *, indent: int = 0) -> None:
+        self._emit("yellow", message, indent=indent)
 
-    def error(self, message: str, indent: int = 0) -> None:
-        self._emit("light_red", message, indent)
+    def error(self, message: str, *, indent: int = 0) -> None:
+        self._emit("light_red", message, indent=indent)
 
-    def prompt(self, message: str, indent: int = 0, end: str = " ") -> None:
-        padding = "  " * max(0, indent)
-        prefix = self.colour("light_blue")
+    def prompt(self, message: str, *, indent: int = 0, end: str = "") -> None:
+        padding = " " * max(indent, 0)
+        prefix = f"{self.colour('light_blue')}>{Style.RESET_ALL} "
         self.stream.write(f"{padding}{prefix}{message}{Style.RESET_ALL}{end}")
         self.stream.flush()
         self._notify(message)
 
-    def rule(self, label: str = "", bar: str = "------------------------------------") -> None:
-        self.info(bar, indent=2)
+    def rule(self, label: str | None = None) -> None:
+        bar = "-" * 36
         if label:
-            self.info(label, indent=2)
+            self.info(f"{bar} {label} {bar}")
+        else:
+            self.info(bar * 2)
 
-    def bullet_list(self, items: list[str], indent: int = 0) -> None:
+    def bullet_list(self, items: Iterable[str], *, indent: int = 2) -> None:
         for item in items:
-            self.info(f"• {item}", indent)
+            self.info(f"- {item}", indent=indent)
 
 
 __all__ = ["Console"]

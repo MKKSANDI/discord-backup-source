@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from discord_backup.identity import DiscordBrowserIdentity, build_headers, ensure_build_number
+from .identity import DiscordBrowserIdentity
 
 API_BASE = "https://discord.com/api/v9"
 
@@ -19,29 +19,28 @@ class DiscordHTTPClient:
         self,
         client: httpx.AsyncClient,
         identity: DiscordBrowserIdentity,
+        *,
         concurrency: int = 6,
         max_retries: int = 4,
     ) -> None:
         self._client = client
         self.identity = identity
         self._semaphore = asyncio.Semaphore(max(1, concurrency))
-        self._max_retries = max_retries
+        self._max_retries = max(1, max_retries)
 
     @classmethod
     async def create(
         cls,
+        *,
         identity: DiscordBrowserIdentity | None = None,
         timeout: float = 30.0,
         concurrency: int = 6,
         max_retries: int = 4,
     ) -> "DiscordHTTPClient":
-        ensure_build_number()
         identity = identity or DiscordBrowserIdentity()
-        client = httpx.AsyncClient(
-            timeout=timeout,
-            headers=identity.build_headers("get", superprop=True),
-        )
-        return cls(client, identity, concurrency, max_retries)
+        client = httpx.AsyncClient(base_url=API_BASE, timeout=timeout, http2=True)
+        await identity.ensure_build_number(client)
+        return cls(client, identity, concurrency=concurrency, max_retries=max_retries)
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -50,64 +49,97 @@ class DiscordHTTPClient:
         self,
         method: str,
         url: str,
+        *,
         token: str | None = None,
-        json_payload: dict | None = None,
-        params: dict | None = None,
+        json_payload: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
         super_properties: bool = True,
         include_locale: bool = True,
         include_debug: bool = False,
-        expected_status: int | None = 200,
+        expected_status: Iterable[int] | None = None,
+        retries: int | None = None,
+        referer: str | None = "https://discord.com/channels/@me",
+        origin: str | None = "https://discord.com",
+        context: str | None = None,
+        headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         if not url.startswith("http"):
-            url = f"{API_BASE.rstrip('/')}/{url.lstrip('/')}"
-        referer = "https://discord.com/channels/@me"
-        origin = "https://discord.com"
-        headers = self.identity.build_headers(
-            method,
-            token=token,
-            debugoptions=include_debug,
-            discordlocale=include_locale,
-            superprop=super_properties,
-        )
-        for attempt in range(self._max_retries):
+            # treat as API path
+            url = url.lstrip("/")
+        attempt_total = retries or self._max_retries
+        last_error: Exception | None = None
+
+        for attempt in range(1, attempt_total + 1):
             async with self._semaphore:
+                request_headers = await self.identity.build_headers(
+                    self._client,
+                    method=method,
+                    authorization=token,
+                    referer=referer,
+                    origin=origin,
+                    super_properties=super_properties,
+                    include_locale=include_locale,
+                    include_debug=include_debug,
+                    timezone="Europe/London",
+                    context=context,
+                    extra=headers,
+                )
                 try:
                     response = await self._client.request(
-                        method,
+                        method.upper(),
                         url,
                         json=json_payload,
                         params=params,
-                        headers=headers,
+                        headers=request_headers,
                     )
                 except httpx.HTTPError as exc:
-                    if attempt == self._max_retries - 1:
-                        raise RuntimeError(
-                            f"Failed to complete {method} {url} after {self._max_retries} attempts"
-                        ) from exc
-                    await asyncio.sleep(1.5)
+                    last_error = exc
+                    await asyncio.sleep(1.5 * attempt)
                     continue
+
             if response.status_code == 429:
-                data = response.json() if response.content else {}
-                delay = float(data.get("retry_after", 0.25))
+                delay = 1.5
+                try:
+                    data = response.json()
+                    delay = float(data.get("retry_after", delay)) + 0.25
+                except (ValueError, json.JSONDecodeError):
+                    pass
                 await asyncio.sleep(delay)
                 continue
-            if expected_status and response.status_code != expected_status and response.status_code >= 500:
-                await asyncio.sleep(0.25)
+
+            if response.status_code >= 500 and attempt < attempt_total:
+                await asyncio.sleep(1.5 * attempt)
                 continue
+
+            if expected_status and response.status_code not in expected_status:
+                return response
+
             return response
-        return response  # type: ignore
+
+        if last_error:
+            raise last_error
+        raise RuntimeError(f"Failed to complete {method} {url} after {attempt_total} attempts")
 
     async def json(
         self,
         method: str,
         url: str,
+        *,
         token: str | None = None,
-        expected_status: int | None = 200,
+        expected_status: Iterable[int] | None = None,
         **kwargs: Any,
     ) -> Any:
-        response = await self.request(method, url, token=token, expected_status=expected_status, **kwargs)
+        response = await self.request(
+            method,
+            url,
+            token=token,
+            expected_status=expected_status,
+            **kwargs,
+        )
         response.raise_for_status()
-        return response.json()
+        if response.content:
+            return response.json()
+        return None
 
 
-__all__ = ["API_BASE", "DiscordHTTPClient"]
+__all__ = ["DiscordHTTPClient", "API_BASE"]

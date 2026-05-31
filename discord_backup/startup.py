@@ -4,26 +4,32 @@ import os
 from pathlib import Path
 
 
-def _startup_path() -> Path:
-    roaming = os.environ.get("APPDATA", "")
-    return Path(roaming) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "backupStartup.vbs"
+STARTUP_FILENAME = "discord_backup_startup.vbs"
+
+
+def startup_folder() -> Path:
+    path = Path(os.getenv("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def write_startup_script(command: str, working_dir: Path) -> Path:
+    script_path = startup_folder() / STARTUP_FILENAME
+    lines = [
+        "Set oShell = CreateObject(\"WScript.Shell\")",
+        f'oShell.CurrentDirectory = "{working_dir}"',
+        f'oShell.run "{command}"',
+    ]
+    script_path.write_text("\n".join(lines), encoding="utf-8")
+    return script_path
 
 
 def remove_startup_script() -> bool:
-    """Remove the auto-backup startup script if present. Returns True if removed."""
-    path = _startup_path()
+    path = startup_folder() / STARTUP_FILENAME
     if path.exists():
         path.unlink()
         return True
     return False
 
 
-def write_startup_script(command: str, cwd: str) -> str:
-    """Write VBS script to run command at Windows startup. Returns script path."""
-    path = _startup_path()
-    content = f'Set oShell = CreateObject("WScript.Shell")\noShell.run "{command}"'
-    path.write_text(content, encoding="utf-8")
-    return str(path)
-
-
-__all__ = ["remove_startup_script", "write_startup_script"]
+__all__ = ["write_startup_script", "remove_startup_script", "STARTUP_FILENAME"]
