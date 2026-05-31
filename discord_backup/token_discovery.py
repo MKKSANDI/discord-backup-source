@@ -1,5 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,7 +14,6 @@ class DiscoveredToken:
 
 async def discover_tokens() -> List[DiscoveredToken]:
     """Scan local storage for Discord tokens. Returns list of DiscoveredToken."""
-    # Implement by scanning browser/roaming storage (see token_discovery_dis.txt).
     return []
 
 

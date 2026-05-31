@@ -1,4 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
 # Runtime configuration loaded from config.yml.
 
 from __future__ import annotations

@@ -1,6 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
-# TUI uses prompt_toolkit dialogs (button_dialog, input_dialog, message_dialog, path_dialog, radiolist_dialog, yes_no_dialog).
-
 from __future__ import annotations
 
 import asyncio
@@ -58,13 +55,15 @@ async def _async_discover_tokens() -> list[DiscoveredToken]:
 def run_tui() -> None:
     """Run the interactive TUI (no CLI args)."""
     if not _HAS_PROMPT_TOOLKIT:
-        _fallback_menu()
-        return
+        raise RuntimeError(
+            "prompt_toolkit is required for TUI mode. "
+            "Run `python -m pip install -r requirements.txt` and retry."
+        )
     config = AppConfig.load()
     console = Console(accent=config.colour)
     while True:
         action = radiolist_dialog(
-            title="Discord Backup",
+            title="DiscordAccountBackup",
             text="Select an action (use arrow keys, Enter to confirm)",
             values=[
                 ("backup_scan", "Select token for backup"),
@@ -99,15 +98,6 @@ def run_tui() -> None:
             _handle_startup_remove()
 
 
-def _fallback_menu() -> None:
-    print("Discord Backup (fallback - install prompt_toolkit for full TUI)")
-    print("1. Backup  2. Restore  3. Quit")
-    choice = input("Choice: ").strip()
-    if choice == "3":
-        return
-    print("Run with CLI for full options: python main.py backup --help")
-
-
 def _run_backup_flow(console: Console, config: AppConfig, token: str | None = None) -> None:
     buf = io.StringIO()
     console_capture = Console(accent=config.colour, stream=buf)
@@ -119,8 +109,6 @@ def _run_backup_flow(console: Console, config: AppConfig, token: str | None = No
 
     try:
         result = run_with_loading("Backup in progress", "Starting backup...", worker)
-    except NotImplementedError:
-        result = None
     except BackupError as exc:
         message_dialog(title="Backup failed", text=f"Unexpected error\n{exc}").run()
         return

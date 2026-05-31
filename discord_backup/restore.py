@@ -1,5 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
-
 from __future__ import annotations
 
 
@@ -18,7 +16,7 @@ class RestoreService:
         console: object | None = None,
     ) -> dict:
         """Run restore. Returns summary with guild_id, favourite_gifs_status, folder_restore_attempted, duration."""
-        raise NotImplementedError("Restore logic - implement from restore_dis.txt")
+        raise RestoreError("Restore operation is currently unavailable in this source build.")
 
 
 __all__ = ["RestoreError", "RestoreService"]

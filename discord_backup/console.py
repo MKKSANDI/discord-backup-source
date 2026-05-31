@@ -1,4 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
 """Lightweight coloured console helper."""
 
 from __future__ import annotations

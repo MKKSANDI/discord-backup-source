@@ -1,4 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
 """discord_backup package."""
 
 from __future__ import annotations

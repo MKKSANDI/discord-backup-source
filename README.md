@@ -1,41 +1,47 @@
-# Discord Backup
+# DiscordAccountBackup
 
-Discord Backup is a Python CLI/TUI project for collecting and restoring Discord-related backup data.
+`DiscordAccountBackup` is a Windows-first Python CLI/TUI project with dependency bootstrapping built in.
 
-## Project structure
+## Requirements
 
-- `main.py`: entry point
-- `run.bat`: elevated launcher for Windows
-- `config.yml`: runtime options
-- `discord_backup/`:
-  - `cli.py`: command routing
-  - `tui.py`: interactive terminal mode
-  - `backup.py`: backup workflow
-  - `restore.py`: restore workflow
-  - `token_discovery.py`: token discovery logic
-  - `config.py`, `models.py`, `http_client.py`, `identity.py`, `results.py`, `utils.py`
+- Python 3.10+
+- Windows PowerShell / Command Prompt
 
-## Quick start
-
-```powershell
-python -m pip install -r requirements.txt
-```
-
-Run elevated on Windows:
+## Quick Start (Windows)
 
 ```bat
 run.bat
 ```
 
-Run directly with Python:
+`run.bat` will:
+1. Request administrator privileges.
+2. Detect `.venv\Scripts\python.exe` or fall back to `python`.
+3. Install dependencies from `requirements.txt`.
+4. Launch `main.py`.
+
+## Run From Source
+
+Direct runs also perform dependency checks and auto-install missing packages when possible:
 
 ```powershell
 python main.py --help
 python main.py
 ```
 
-## Notes
+## CLI Usage
 
-- `run.bat` requests administrator rights before launching.
-- Running with no arguments starts terminal UI mode.
-- Running with arguments uses CLI mode.
+```powershell
+python main.py backup --help
+python main.py restore --help
+python main.py tokens
+python main.py startup-add --help
+python main.py startup-remove
+```
+
+## Project Layout
+
+- `main.py`: entrypoint, runtime dependency bootstrap, CLI/TUI dispatch
+- `run.bat`: elevated Windows launcher
+- `config.yml`: runtime settings
+- `requirements.txt`: Python dependencies
+- `discord_backup/`: app modules (CLI, TUI, HTTP client, config, models, startup helpers)

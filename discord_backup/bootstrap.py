@@ -1,22 +1,20 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
 """Dependency bootstrap helpers."""
 
 from __future__ import annotations
 
 import importlib
-import os
 import subprocess
 import sys
-import time
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
 
-try:
-    from colorama import Fore, Style
-except ImportError:
-    Fore = Style = None  # type: ignore
-
-_WINDOWS = os.name == "nt"
-REQUIRED_PACKAGES: List[Tuple[str, str]] = []
+REQUIRED_PACKAGES: List[Tuple[str, str]] = [
+    ("colorama", "colorama>=0.4.6"),
+    ("httpx", "httpx>=0.24.0"),
+    ("yaml", "PyYAML>=6.0"),
+    ("typer", "typer[all]>=0.9.0"),
+    ("prompt_toolkit", "prompt_toolkit>=3.0.0"),
+    ("rich", "rich>=13.0.0"),
+]
 
 
 def ensure_runtime_dependencies(verbose: bool = False) -> None:
@@ -41,8 +39,6 @@ def ensure_runtime_dependencies(verbose: bool = False) -> None:
             raise RuntimeError(
                 f"Failed to install {spec}. Run: {sys.executable} -m pip install {spec}"
             ) from exc
-        if verbose and idx < total:
-            time.sleep(0.1)
 
 
 def _module_available(module_name: str) -> bool:

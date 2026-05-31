@@ -1,4 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
 # Modern Discord backup & restore toolkit.
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ from discord_backup.token_discovery import DiscoveredToken, discover_tokens
 
 colorama_init()
 
-app = typer.Typer(help="Modern Discord backup & restore toolkit.")
+app = typer.Typer(help="DiscordAccountBackup CLI/TUI toolkit.")
 
 
 def _load_config_and_console() -> tuple[AppConfig, Console]:

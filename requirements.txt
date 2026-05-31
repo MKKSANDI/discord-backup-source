@@ -1,4 +1,3 @@
-# Decompiled from DiscordBackup.exe - dependencies inferred from bytecode
 colorama>=0.4.6
 httpx>=0.24.0
 PyYAML>=6.0

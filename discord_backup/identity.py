@@ -1,4 +1,3 @@
-# Decompiled from DiscordBackup.exe (PyInstaller, Python 3.13)
 """Discord browser-like identity / headers for API requests."""
 
 from __future__ import annotations
@@ -8,7 +7,7 @@ import platform
 import sys
 from typing import Any
 
-# Build number / client version - from bytecode
+# Default build number / client version.
 DISCORD_BUILD = "123456"
 
 
