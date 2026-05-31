@@ -19,10 +19,11 @@ T = TypeVar("T")
 _SPINNER_FRAMES = ["|", "/", "-", "\\"]
 _STYLE = Style.from_dict(
     {
-        "frame": "bg:#1e1f29 #ffffff",
-        "title": "bg:#3f51b5 #ffffff bold",
-        "text": "#ffffff",
-        "spinner": "#ffca28 bold",
+        # White + blue theme to match the main menu dialogs.
+        "frame": "bg:#f7f9ff #0f172a",
+        "title": "bg:#2563eb #ffffff bold",
+        "text": "bg:#f7f9ff #0f172a",
+        "spinner": "bg:#f7f9ff #2563eb bold",
     }
 )
 
